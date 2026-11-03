@@ -1,12 +1,9 @@
 package com.mmgpt.shoplistgpt
 
 import android.os.Bundle
-import android.view.GestureDetector
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.GestureDetectorCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -78,27 +75,23 @@ class PlanCategoriesFragment : Fragment() {
         binding.recyclerView.adapter = adapter
         dragHelper.attachToRecyclerView(binding.recyclerView)
 
-        val gestureDetector = GestureDetectorCompat(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                val child = binding.recyclerView.findChildViewUnder(e.x, e.y)
-                val position = child?.let { binding.recyclerView.getChildAdapterPosition(it) } ?: RecyclerView.NO_POSITION
-                if (position != RecyclerView.NO_POSITION) {
+        // Double-tap a category to jump to its page. Row p of this list is
+        // the "add" row at 0 followed by the categories, and the pager has
+        // this list at page 0 followed by the categories, so row p == page p.
+        binding.recyclerView.addOnItemTouchListener(
+            CategoryDoubleTapListener(
+                context = requireContext(),
+                recyclerView = binding.recyclerView,
+                ignoredViewIds = setOf(R.id.btnEdit, R.id.btnDelete, R.id.dragHandle),
+                pageForPosition = { position ->
                     val item = adapter.currentList.getOrNull(position)
-                    if (item?.isHeading == true) {
-                        val index = position - 1
-                        val viewPager = requireActivity().findViewById<ViewPager2>(R.id.viewPager)
-                        viewPager.currentItem = index + 1
-                        return true
-                    }
+                    if (item?.isHeading == true) position else null
+                },
+                onNavigate = { page ->
+                    requireActivity().findViewById<ViewPager2>(R.id.viewPager).currentItem = page
                 }
-                return super.onDoubleTap(e)
-            }
-        })
-
-        binding.recyclerView.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            false
-        }
+            )
+        )
 
         binding.btnClearAll.visibility = View.VISIBLE
         binding.btnClearAll.setOnClickListener {

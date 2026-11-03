@@ -93,30 +93,28 @@ class MainActivity : AppCompatActivity() {
         binding.viewPager.adapter = pagerAdapter
 
         val pagerRecyclerView = binding.viewPager.getChildAt(0) as RecyclerView
+        // Wrap-around swipe: right on the first page goes to the last page,
+        // left on the last page goes to the first. The swipe's start point is
+        // recorded in dispatchTouchEvent, because this listener almost never
+        // receives ACTION_DOWN (the page's scroll view takes it first). That
+        // left touchStartX stale and made ordinary swipes jump pages.
         pagerRecyclerView.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    touchStartX = event.x
-                    false
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val deltaX = event.rawX - touchStartX
+                val threshold = 100
+                val lastIndex = pagerAdapter.itemCount - 1
+                val target = when {
+                    deltaX > threshold && binding.viewPager.currentItem == 0 -> lastIndex
+                    deltaX < -threshold && binding.viewPager.currentItem == lastIndex -> 0
+                    else -> null
                 }
-                MotionEvent.ACTION_UP -> {
-                    val deltaX = event.x - touchStartX
-                    val threshold = 100
-                    val lastIndex = pagerAdapter.itemCount - 1
-                    when {
-                        deltaX > threshold && binding.viewPager.currentItem == 0 -> {
-                            binding.viewPager.currentItem = lastIndex
-                            true
-                        }
-                        deltaX < -threshold && binding.viewPager.currentItem == lastIndex -> {
-                            binding.viewPager.currentItem = 0
-                            true
-                        }
-                        else -> false
-                    }
+                // Let the pager finish handling ACTION_UP (returning true here
+                // used to leave it mid-drag), then jump.
+                if (target != null) {
+                    binding.viewPager.post { binding.viewPager.currentItem = target }
                 }
-                else -> false
             }
+            false
         }
 
         var lastSize = viewModel.categories.value?.size ?: 0
@@ -134,6 +132,15 @@ class MainActivity : AppCompatActivity() {
         startBinding.btnExport.setOnClickListener { promptForExport() }
 
         showStartPage()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Every touch passes through here first, so this always sees the
+        // start of a swipe (used by the wrap-around swipe listener above).
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            touchStartX = ev.rawX
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
